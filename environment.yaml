@@ -1,0 +1,17 @@
+name: landuse  
+channels:
+    - conda-forge
+    - r
+dependencies:
+    - gdal
+    - r-base
+    - r-essentials
+    - r-tidyverse
+    - rstudio
+    - r-devtools
+    - r-rlang
+    - r-sf
+    - r-sp
+    - r-gstat
+    - bioconda::snakemake
+    - cairosvg
