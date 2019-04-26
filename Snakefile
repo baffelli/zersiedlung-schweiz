@@ -2,7 +2,7 @@
 
 rule all:
     input:
-         "data/su-b-02.02-n-as-gde-17.xlsx", "data/SHAPEFILE_LV95_LN02.zip", "data/su-d-01.02.04.07.xlsx"
+         "data/su-b-02.02-n-as-gde-17.xlsx", "data/SHAPEFILE_LV95_LN02", "data/su-d-01.02.04.07.xlsx"
 
 rule download_land_cover:
   output:
@@ -19,6 +19,18 @@ rule download_boundaries:
        cd data
        unzip temp.zip SHAPEFILE_LV95_LN02.zip
        """
+rule unzip_boundaries:
+    input:
+      "data/SHAPEFILE_LV95_LN02.zip"
+    output:
+      directory("data/SHAPEFILE_LV95_LN02")
+    shell:
+        """
+        cd data
+        unzip SHAPEFILE_LV95_LN02.zip
+        """
+        
+    
 rule download_population:
   output:
       "data/su-d-01.02.04.07.xlsx"

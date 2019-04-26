@@ -30,6 +30,15 @@ load_population <- function(xls)
                                                    sheet = sh,
                                                    skip = 2)
                               }) 
+  
+  
+load_pop <- function(tb)
+{
+  cells <- tidyxl::xlsx_cells(tb)
+  district_addresses <- cells[cells$col == "1" & cells$row >8, c("character","sheet")] %>%
+    dplyr::filter(!stringr::str_detect(character,">>") & !is.na(character)) %>%
+    tidyr::extract(character, c("bfs_id","name"), "(\\d+) (.*$)")
+}
   names(loaded_sheets)<-sheets
   dplyr::bind_rows(loaded_sheets, .id="year")
 }
