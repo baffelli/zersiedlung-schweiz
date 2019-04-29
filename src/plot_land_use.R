@@ -35,8 +35,22 @@ load_population <- function(xls)
 load_pop <- function(tb)
 {
   cells <- tidyxl::xlsx_cells(tb)
-  district_addresses <- cells[cells$col == "1" & cells$row >8, c("character","sheet")] %>%
-    dplyr::filter(!stringr::str_detect(character,">>") & !is.na(character)) %>%
+  #This gets the district and their names
+  district_addresses_after_1999 <- cells[cells$col == "1" & cells$row >8, c("character","sheet", "row")] %>%
+    dplyr::filter(!stringr::str_detect(character,">>") & !is.na(character) & as.numeric(sheet) > 1999) %>%
+    tidyr::extract(character, c("bfs_id","name"), "(\\d+) (.*$)")
+  #For the sheets before 1999, the bfs_id and the name are in two separate columns
+  district_addresses_before_1999 <- cells[cells$col %in% c("1","2") & cells$row >8 & as.numeric(cells$sheet) <= 1999, c("character","sheet", "numeric", "col","row")] %>%
+    dplyr::rename(name=character, bfs_id=numeric)
+    dplyr::left_join(district_addresses_before_1999, district_addresses_before_1999, by=c("sheet","row")) %>% 
+      dplyr::filter(col.x!=col.y & !is.na(name.x)) %>%
+      dplyr::select(name=name.x, 
+                  sheet,
+                  bfs_id=bfs_id.y,
+                  row) %>%
+      dplyr::filter(!is.na(name) & is.na(bfs_id))
+
+  #Join
     tidyr::extract(character, c("bfs_id","name"), "(\\d+) (.*$)")
 }
   names(loaded_sheets)<-sheets
