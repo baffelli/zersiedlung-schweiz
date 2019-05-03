@@ -1,19 +1,28 @@
 library(checkpoint)
-checkpoint("2018-08-08", checkpointLocation = tempdir())
+checkpoint("2018-08-08")
 
 
 
 #Download data
 
-load_arealstatistik <- function(xls)
+load_arealstatistik <- function(tb)
 {
   row_to_skip <- 14
   sheets <- c("AS18_17_gde","AS09R_17_gde", "AS97_17_gde",  "AS85_17_gde")
+  cells <- tidyxl::xlsx_cells(tb)
+  land_use <- cells %>% dplyr::filter(sheet %in% sheets)
+  #Get headerspx.
+  headers <- land_use %>% dplyr::filter(row == 15) %>% 
+    dplyr::select(row, col, name=character)
+  revision_years <- land_use %>% dplyr::filter(address=="H18")
+  
+  land_use_stat <- land_use %>% dplyr::filter(row >= 20)
+  
   loaded_sheets <- 
     purrr::map(sheets,
                function(sh)
                {
-                 readxl::read_excel(xls, 
+                 readxl::read_excel(tb, 
                                     sheet = sh, 
                                     skip = row_to_skip) %>%
                    dplyr::filter(stringr::str_detect(Nummer,"\\d+"))
@@ -21,57 +30,41 @@ load_arealstatistik <- function(xls)
   
 }
 
-load_population <- function(xls)
-{
-  sheets <- readxl::excel_sheets(xls)
-  loaded_sheets <- purrr::map(sheets,
-                              function(sh){
-                                readxl::read_excel(xls, 
-                                                   sheet = sh,
-                                                   skip = 2)
-                              }) 
-  
+
+
+
   
 load_pop <- function(tb)
 {
-  cells <- tidyxl::xlsx_cells(tb)
-  #This gets the district and their names
-  district_addresses_after_1999 <- cells[cells$col == "1" & cells$row >8, c("character","sheet", "row")] %>%
-    dplyr::filter(!stringr::str_detect(character,">>") & !is.na(character) & as.numeric(sheet) > 1999) %>%
-    tidyr::extract(character, c("bfs_id","name"), "(\\d+) (.*$)")
-  #For the sheets before 1999, the bfs_id and the name are in two separate columns
-  district_addresses_before_1999 <- cells[cells$col %in% c("1","2") & cells$row >8 & as.numeric(cells$sheet) <= 1999, c("character","sheet", "numeric", "col","row")] %>%
-    dplyr::rename(name=character, bfs_id=numeric)
-    dplyr::left_join(district_addresses_before_1999, district_addresses_before_1999, by=c("sheet","row")) %>% 
-      dplyr::filter(col.x!=col.y & !is.na(name.x)) %>%
-      dplyr::select(name=name.x, 
-                  sheet,
-                  bfs_id=bfs_id.y,
-                  row) %>%
-      dplyr::filter(!is.na(name) & is.na(bfs_id))
+  pop <- pxR::read.px(tb) 
+  population_raw <-
+    pop$DATA$value %>% dplyr::as_tibble()
+  population_locality <-
+    population_raw%>%
+    dplyr::mutate_if(is.factor,as.character) %>%
+    dplyr::filter(Demographische.Komponente %in% c("Bestand am 1. Januar")) %>%
+    dplyr::filter(Geschlecht == "Geschlecht - Total")  %>%
+    dplyr::filter(get("Staatsangehörigkeit..Kategorie.") == "Staatsangehörigkeit - Total") %>%
+    dplyr::filter(
+      stringr::str_detect(get("Kanton.......Bezirk........Gemeinde........."), "\\.+\\d+\\s*\\w+")
+    ) %>%
+    dplyr::rename(
+      year=Jahr,
+      locality = "Kanton.......Bezirk........Gemeinde.........",
+      population=value) %>%
+    tidyr::extract(locality, c("bfs_id","name"),"\\.+(\\d+)\\s(.*$)") %>%
+    dplyr::select(-"Demographische.Komponente",-"Staatsangehörigkeit..Kategorie.",-"Geschlecht")
+  
+}
 
-  #Join
-    tidyr::extract(character, c("bfs_id","name"), "(\\d+) (.*$)")
-}
-  names(loaded_sheets)<-sheets
-  dplyr::bind_rows(loaded_sheets, .id="year")
-}
 
 
 #Load land use 
 land_use <- load_arealstatistik("data/su-b-02.02-n-as-gde-17.xlsx") %>% dplyr::bind_rows()
 
 #Load population data
-population <- load_population("data/su-d-01.02.04.07.xlsx") %>%
-  dplyr::filter(stringr::str_detect(X__1,'\\.+\\d+')) %>%
-  tidyr::extract(X__1, c("bfs_id", "name"), "(\\d+) (.*$)") %>%
-  dplyr::mutate(bfs_id = as.integer(bfs_id)) %>%
-  dplyr::select(
-    bfs_id,
-    name,
-    year,
-    population=X__2
-  )
+population <- load_pop("data/px-x-0102020000_201.px")  %>% mutate(bfs_id = as.numeric(bfs_id))
+
 
 
 #Get the names of all land use classes
@@ -97,7 +90,8 @@ land_use_long <- land_use %>%
          year="Erhebungsjahr/e",
          point_area="Punktfläche",
          polygon_area="Polygonfläche") %>%
-  dplyr::mutate(bfs_id = as.integer(bfs_id))
+  dplyr::mutate(bfs_id = as.integer(bfs_id)) %>%
+  dplyr::mutate(year=stringr::str_replace_all(year,"/\\d+",""))
 
 #Add population information
 land_use_full <-
@@ -107,11 +101,10 @@ land_use_full <-
 land_use_ratios <-
   land_use_full %>%
   dplyr::group_by(bfs_id, year) %>%
-  dplyr::mutate(land_use_ratio = sum(area[land_use_class %in% urban_classes])/sum(area)) %>%
-  dplyr::group_by(bfs_id, year) %>%
-  dplyr::filter(dplyr::row_number()==1) %>%
+  dplyr::mutate(land_use_ratio = sum(area[land_use_class %in% urban_land_use_classes])/sum(area)) %>%
   dplyr::select(-land_use_class, -area) %>%
-  dplyr::mutate(population_density = as.numeric(population) / as.numeric(polygon_area))
+  dplyr::mutate(population_density = as.numeric(population) / as.numeric(polygon_area)) %>%
+  dplyr::filter(row_number() == 1)
 
 
 #Load boundary data
@@ -122,9 +115,11 @@ swiss_epsg <- 2056
 sf::st_crs(boundaries) <- swiss_epsg
 
 boundaries_with_land_use <-  
+  
   dplyr::right_join(boundaries,land_use_ratios, by=c("BFS_NUMMER"="bfs_id")) %>% sf::st_zm()
 
-
+sf::st_crs(boundaries_with_land_use) <- swiss_epsg
 
 #Plot
-ggplot(boundaries_with_land_use %>% dplyr::filter(year=="2008")) + geom_sf(aes(fill=population_density))
+ggplot(boundaries_with_land_use %>% filter(year %in% c("1981","2017") && )) + geom_sf(aes(fill=land_use_ratio/population_density, label=KANTONSNUM), crs=swiss_epsg) + coord_sf(datum=sf::st_crs(swiss_epsg)) + facet_wrap("year")
+
