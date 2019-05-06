@@ -12,11 +12,26 @@ load_arealstatistik <- function(tb)
   cells <- tidyxl::xlsx_cells(tb)
   land_use <- cells %>% dplyr::filter(sheet %in% sheets)
   #Get headerspx.
-  headers <- land_use %>% dplyr::filter(row == 15) %>% 
+  headers <- land_use %>% 
+    dplyr::filter(row == 15) %>% 
     dplyr::select(row, col, name=character)
-  revision_years <- land_use %>% dplyr::filter(address=="H18")
+  #Get years of revision
+  revision_years <- land_use %>% 
+    dplyr::filter(address=="H18") %>%
+    dplyr::select(row, col, sheet, revision_year = character)
+  #Get land use per each class
+  land_per_class <- land_use %>% 
+    dplyr::filter(row >= 20) %>%
+    dplyr::filter(col > 4 & col <= 17) %>%
+    dplyr::select(row, col, area = numeric, sheet)
+  #Get the bfs id of each community
+  bfs_ids <- land_use %>% 
+    dplyr::filter(row >= 20) %>%
+    dplyr::filter(col == 1) %>%
+    dplyr::select(row,col, bfs_id = numeric, sheet)
   
-  land_use_stat <- land_use %>% dplyr::filter(row >= 20)
+  names <- land_use %>% 
+  
   
   loaded_sheets <- 
     purrr::map(sheets,
