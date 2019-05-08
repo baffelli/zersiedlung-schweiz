@@ -176,6 +176,13 @@ x_grad <- modulate_color(base_x, alpha_grad)
 y_grad <- modulate_color(base_y, alpha_grad)
 
 
+blend_colors <- function(c1, c2, op)
+{
+  all_comb <- tidyr::crossing(c1,c2)
+  
+  
+}
+  
 
 #Plot
 ggplot(boundaries_with_land_use %>% filter(revision_year == "2004/09R" & KANTONSNUM ==1)) + geom_sf(aes(fill=population_density, label=KANTONSNUM), crs=swiss_epsg) + coord_sf(datum=sf::st_crs(swiss_epsg)) 
