@@ -171,18 +171,41 @@ modulate_color <- function(base_col, col_mod, which="alpha"){
 }
 base_x <- "#1E8CE3"
 base_y <- "#C91024"
-alpha_grad <- list(0,0.5,1)
+alpha_grad <- list(0.2,0.5,0.8)
 x_grad <- modulate_color(base_x, alpha_grad)
 y_grad <- modulate_color(base_y, alpha_grad)
 
+normalize_color <- function(c)
+{
+  (c - min(c))/(max(c) - min(c))
+  
+}
 
 blend_colors <- function(c1, c2, op)
 {
-  all_comb <- tidyr::crossing(c1,c2)
-  
-  
+  all_comb <- tidyr::crossing(c1,c2[nrow(c2):1,]
+ ) 
+  df1 <- all_comb  %>% 
+    dplyr::select("red","green", "blue","alpha") %>%
+    dplyr::mutate_all(function(x) x/255) 
+  df2 <- all_comb  %>% 
+    dplyr::select("red"="red1","green"="green1", "blue"="blue1","alpha"="alpha1") %>% 
+    dplyr::mutate_all(function(x) x/255)
+
+  tibble(red = op(df1$red, df2$red),
+         green = op(df1$green, df2$green),
+         blue = op(df1$blue, df2$blue),
+         alpha = op(df1$alpha, df2$alpha)) %>%
+    dplyr::mutate_all(function(x) x*255)
+}
+
+col2hex <- function(col_df) 
+{
+  rgb(col_df$red,col_df$green,col_df$blue, col_df$alpha, maxColorValue = 255)
 }
   
+grad <- col2hex(blend_colors(x_grad, rev(y_grad), function(x,y) ifelse(x>y,x,y)))
+barplot(1:9, col = grad)
 
 #Plot
 ggplot(boundaries_with_land_use %>% filter(revision_year == "2004/09R" & KANTONSNUM ==1)) + geom_sf(aes(fill=population_density, label=KANTONSNUM), crs=swiss_epsg) + coord_sf(datum=sf::st_crs(swiss_epsg)) 
